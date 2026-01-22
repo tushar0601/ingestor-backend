@@ -1,0 +1,41 @@
+# ----------------------------
+# Core Web Framework
+# ----------------------------
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+
+# ----------------------------
+# Database & ORM
+# ----------------------------
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg2-binary==2.9.10
+
+# ----------------------------
+# Object Storage (S3 / MinIO)
+# ----------------------------
+boto3==1.35.81
+
+# ----------------------------
+# Configuration & Environment
+# ----------------------------
+python-dotenv==1.0.1
+pydantic==2.10.3
+pydantic-settings==2.7.0
+
+# ----------------------------
+# Utilities
+# ----------------------------
+python-multipart==0.0.19
+uuid6==2024.7.10
+
+# ----------------------------
+# Logging (structured, later useful)
+# ----------------------------
+structlog==24.4.0
+
+# ----------------------------
+# Development / Testing (Week 1 light)
+# ----------------------------
+pytest==8.3.4
+httpx==0.28.1
