@@ -16,7 +16,7 @@ POLL_INTERVAL_SECONDS = 1
 
 def run_file_processor_worker() -> None:
     loop_count = 0
-    storage_service = StorageService()  # ✅ create once
+    storage_service = StorageService()
 
     while True:
         db: Session = SessionLocal()
@@ -49,12 +49,10 @@ def run_file_processor_worker() -> None:
                 db.commit()
                 continue
 
-            # ✅ idempotency baseline
             if file_obj.status == "PROCESSED":
                 job_repo.mark_succeeded(job_id=job.id)
                 continue
 
-            # ✅ only process UPLOADED
             if file_obj.status != "UPLOADED":
                 job_repo.mark_failed_with_retry(
                     job_id=job.id,
