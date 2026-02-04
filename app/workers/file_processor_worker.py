@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.domain.jobs.model import JobObject
 from app.domain.files.model import FileObject
+from app.domain import models
 from app.core.db import SessionLocal
 from app.core.config import settings
 from app.repository.jobs_repository import JobRepository
@@ -12,6 +13,9 @@ from app.services.storage_service import StorageService
 from app.processors.errors import NonRetryableProcessingError
 
 POLL_INTERVAL_SECONDS = 1
+
+from sqlalchemy.exc import SQLAlchemyError
+import traceback
 
 
 def run_file_processor_worker() -> None:
@@ -61,11 +65,15 @@ def run_file_processor_worker() -> None:
                 continue
 
             file_obj.status = "PROCESSING"
-            db.commit()
+            try:
+                db.commit()
+            except SQLAlchemyError as e:
+                traceback.print_exc()
+                db.rollback()
+                raise
 
             try:
                 metadata, _ = process_file(file_obj, storage_service)
-
                 file_obj.status = "PROCESSED"
                 file_obj.file_metadata = metadata
 
@@ -94,7 +102,6 @@ def run_file_processor_worker() -> None:
                 job_repo.mark_failed_with_retry(job_id=job.id, error=str(e))
 
         except Exception as e:
-            # ✅ protects worker from dying on DB/S3/etc failures outside processor
             db.rollback()
             if job is not None:
                 try:
