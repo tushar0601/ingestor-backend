@@ -7,6 +7,9 @@ from sqlalchemy import (
     String,
     DateTime,
     ForeignKey,
+    Index,
+    Integer,
+    Text,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -17,8 +20,11 @@ from app.core.db import Base
 
 class JobObject(Base):
     __tablename__ = "job_object"
-    __table_args__ = {"schema": "jobs"}
-
+    __table_args__ = (
+        Index("ix_jobs_job_object_status_next_run_at", "status", "next_run_at"),
+        Index("ix_jobs_job_object_locked_at", "locked_at"),
+        {"schema": "jobs"},
+    )
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -50,6 +56,19 @@ class JobObject(Base):
         nullable=False,
         index=True,
     )
+
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    max_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="5"
+    )
+    next_run_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     error_message: Mapped[str | None] = mapped_column(
         String(2000),

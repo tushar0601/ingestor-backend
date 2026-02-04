@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import boto3
 from botocore.client import Config
+from botocore.exceptions import ClientError
 
 from app.core.config import settings
 
@@ -53,3 +54,33 @@ class StorageService:
 
     def get_object(self, key: str):
         return self._client.get_object(Bucket=settings.S3_BUCKET, Key=key)
+
+    def download_bytes(
+        self, storage_path: str, *, max_bytes: int | None = None
+    ) -> bytes:
+        """
+        Download object content into memory.
+        For Phase 2 only (small files). Use max_bytes to prevent OOM.
+        """
+        try:
+            if max_bytes is not None:
+                head = self._client.head_object(
+                    Bucket=settings.S3_BUCKET, Key=storage_path
+                )
+                size = int(head["ContentLength"])
+                if size > max_bytes:
+                    raise ValueError(
+                        f"Object too large: {size} bytes > max_bytes={max_bytes}"
+                    )
+
+            obj = self._client.get_object(Bucket=settings.S3_BUCKET, Key=storage_path)
+            body = obj["Body"].read()
+
+            if max_bytes is not None and len(body) > max_bytes:
+                raise ValueError(
+                    f"Downloaded too many bytes: {len(body)} > max_bytes={max_bytes}"
+                )
+
+            return body
+        except ClientError as e:
+            raise
