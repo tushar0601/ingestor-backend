@@ -17,7 +17,8 @@ class Settings(BaseSettings):
     API_KEY_HMAC_SECRET: str
     JOB_RUN_TIMEOUT_SECONDS: int
     REAP_EVERY_N_LOOPS: int
-
+    MAX_UPLOAD_BYTES:int
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

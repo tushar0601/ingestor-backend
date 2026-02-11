@@ -1,5 +1,6 @@
 import mimetypes
 from dataclasses import dataclass
+from typing import Iterable
 
 import boto3
 from botocore.client import Config
@@ -84,3 +85,119 @@ class StorageService:
             return body
         except ClientError as e:
             raise
+
+    def initiate_multipart(
+        self,
+        bucket: str,
+        key: str,
+        content_type: str | None = None,
+    ) -> str:
+        """
+        Start a multipart upload and return storage upload_id.
+        """
+        ct = content_type or mimetypes.guess_type(key)[0] or "application/octet-stream"
+
+        resp = self._client.create_multipart_upload(
+            Bucket=bucket,
+            Key=key,
+            ContentType=ct,
+        )
+
+        return resp["UploadId"]
+
+    def presign_part_upload(
+        self,
+        bucket: str,
+        key: str,
+        storage_upload_id: str,
+        part_number: int,
+        expires_in: int = 600,
+    ) -> str:
+        """
+        Generate a presigned URL for uploading one part.
+        """
+        return self._client.generate_presigned_url(
+            ClientMethod="upload_part",
+            Params={
+                "Bucket": bucket,
+                "Key": key,
+                "UploadId": storage_upload_id,
+                "PartNumber": part_number,
+            },
+            ExpiresIn=expires_in,
+            HttpMethod="PUT",
+        )
+
+    def list_parts(
+        self,
+        bucket: str,
+        key: str,
+        storage_upload_id: str,
+    ) -> list[dict]:
+        """
+        List already uploaded parts (source of truth for resume).
+        """
+        parts: list[dict] = []
+        paginator = self._client.get_paginator("list_parts")
+
+        for page in paginator.paginate(
+            Bucket=bucket,
+            Key=key,
+            UploadId=storage_upload_id,
+        ):
+            for p in page.get("Parts", []):
+                parts.append(
+                    {
+                        "part_number": p["PartNumber"],
+                        "etag": p["ETag"],
+                        "size": p.get("Size"),
+                    }
+                )
+
+        return parts
+
+    def complete_multipart(
+        self,
+        bucket: str,
+        key: str,
+        storage_upload_id: str,
+        parts: Iterable[dict],
+    ) -> None:
+        """
+        Finalize multipart upload. Parts must include PartNumber + ETag.
+        """
+        self._client.complete_multipart_upload(
+            Bucket=bucket,
+            Key=key,
+            UploadId=storage_upload_id,
+            MultipartUpload={
+                "Parts": [
+                    {"PartNumber": p["part_number"], "ETag": p["etag"]}
+                    for p in sorted(parts, key=lambda x: x["part_number"])
+                ]
+            },
+        )
+
+    def abort_multipart(
+        self,
+        bucket: str,
+        key: str,
+        storage_upload_id: str,
+    ) -> None:
+        """
+        Abort multipart upload and free storage resources.
+        """
+        self._client.abort_multipart_upload(
+            Bucket=bucket,
+            Key=key,
+            UploadId=storage_upload_id,
+        )
+
+    def head_object(self, bucket: str, key: str) -> dict:
+        """
+        Fetch object metadata after completion.
+        """
+        return self._client.head_object(
+            Bucket=bucket,
+            Key=key,
+        )
